@@ -97,7 +97,9 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outl
 }
 .empty{color:var(--faint);font-size:13px;margin:0 0 10px;}
 .bars{list-style:none;margin:0;padding:0;}
-.bar-row{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:13px;}
+.bar-row{font-size:13px;}
+.bar-btn{display:flex;align-items:center;gap:10px;width:100%;padding:8px 6px;margin:0 -6px;border-radius:3px;text-align:left;}
+.bar-btn:active{background:var(--surface);}
 .bar-label{width:8.4em;flex:none;color:var(--dim);letter-spacing:.01em;font-size:12.5px;white-space:nowrap;}
 .bar-track{flex:1;height:3px;background:var(--line);border-radius:2px;overflow:hidden;}
 .bar-fill{display:block;height:100%;background:var(--accent);}
@@ -195,6 +197,9 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outl
   padding:10px;font-size:12px;line-height:1.5;resize:vertical;
 }
 .msg{font-size:13px;color:var(--accent);margin:16px 2px 0;}
+.fallback{padding:calc(var(--top) + 60px) 24px 24px;max-width:520px;margin:0 auto;}
+.fallback h1{font-family:var(--mincho);font-size:20px;font-weight:600;margin:0 0 14px;letter-spacing:.08em;}
+.fallback p{color:var(--dim);font-size:14px;line-height:1.9;margin:0 0 10px;}
 
 @media (prefers-reduced-motion:reduce){*{transition:none !important;}}
 @media (min-width:600px){
@@ -207,9 +212,8 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outl
 <div id="root"></div>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" crossorigin></script>
 <script>
-var APP_VERSION = "1.1.0";
+var APP_VERSION = "1.2.0";
 /* 起動時に自分自身を取りにいき、埋めこまれた APP_VERSION が違えば読みこみ直す */
 (function () {
   try {
@@ -461,564 +465,438 @@ var QUESTIONS = [
 ];
 
 </script>
-<script type="text/babel" data-presets="react">
+<script>
+if (typeof React !== "undefined" && typeof ReactDOM !== "undefined") {
+"use strict";
 const { useState, useEffect, useRef, useMemo } = React;
-
 /* ------------------------------------------------------------------ */
 /* 保存データ                                                          */
 /* ------------------------------------------------------------------ */
 const KEY = "sukima-ichimon-v1";
 const RECENT_MAX = 30;
 const SET_SIZE = 10;
-
 function emptyStore() {
-  return { v: 1, q: {}, recent: [], streak: 0, last: "", done: 0 };
+    return { v: 1, q: {}, recent: [], streak: 0, last: "", done: 0 };
 }
-
 function loadStore() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return emptyStore();
-    const s = JSON.parse(raw);
-    return Object.assign(emptyStore(), s);
-  } catch (e) {
-    return emptyStore();
-  }
+    try {
+        const raw = localStorage.getItem(KEY);
+        if (!raw)
+            return emptyStore();
+        const s = JSON.parse(raw);
+        return Object.assign(emptyStore(), s);
+    }
+    catch (e) {
+        return emptyStore();
+    }
 }
-
 function saveStore(s) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(s));
-  } catch (e) {}
+    try {
+        localStorage.setItem(KEY, JSON.stringify(s));
+    }
+    catch (e) { }
 }
-
 function today() {
-  const d = new Date();
-  const p = (n) => (n < 10 ? "0" + n : "" + n);
-  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+    const d = new Date();
+    const p = (n) => (n < 10 ? "0" + n : "" + n);
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
 }
-
 function yesterday() {
-  const d = new Date(Date.now() - 86400000);
-  const p = (n) => (n < 10 ? "0" + n : "" + n);
-  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+    const d = new Date(Date.now() - 86400000);
+    const p = (n) => (n < 10 ? "0" + n : "" + n);
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
 }
-
 function touchStreak(s) {
-  const t = today();
-  if (s.last === t) return s;
-  s.streak = s.last === yesterday() ? (s.streak || 0) + 1 : 1;
-  s.last = t;
-  return s;
+    const t = today();
+    if (s.last === t)
+        return s;
+    s.streak = s.last === yesterday() ? (s.streak || 0) + 1 : 1;
+    s.last = t;
+    return s;
 }
-
 function rec(store, id) {
-  return store.q[id] || { o: 0, x: 0, w: 0, s: 0 };
+    return store.q[id] || { o: 0, x: 0, w: 0, s: 0 };
 }
-
 /* ------------------------------------------------------------------ */
 /* 出題                                                                */
 /* ------------------------------------------------------------------ */
 function shuffle(arr) {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const t = a[i];
-    a[i] = a[j];
-    a[j] = t;
-  }
-  return a;
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const t = a[i];
+        a[i] = a[j];
+        a[j] = t;
+    }
+    return a;
 }
-
-function buildSet(store, subject, onlyWrong) {
-  let pool = QUESTIONS;
-  if (subject) pool = pool.filter((q) => q.s === subject);
-  if (onlyWrong) pool = pool.filter((q) => rec(store, q.id).w === 1);
-  if (!pool.length) return [];
-
-  /* 直近30問に出たものは出さない。ただし「まちがえた問題」は早めに戻す */
-  const recent = new Set(store.recent || []);
-  const justNow = new Set((store.recent || []).slice(0, 5));
-  let fresh = pool.filter((q) =>
-    rec(store, q.id).w === 1 ? !justNow.has(q.id) : !recent.has(q.id)
-  );
-  if (fresh.length < SET_SIZE) fresh = pool;
-
-  const wrong = shuffle(fresh.filter((q) => rec(store, q.id).w === 1));
-  const rest = fresh
-    .filter((q) => rec(store, q.id).w !== 1)
-    .map((q) => {
-      const r = rec(store, q.id);
-      return { q: q, seen: r.o + r.x, k: Math.random() };
+function buildSet(store, subject, onlyWrong, field) {
+    let pool = QUESTIONS;
+    if (subject)
+        pool = pool.filter((q) => q.s === subject);
+    if (field)
+        pool = pool.filter((q) => q.f === field);
+    if (onlyWrong)
+        pool = pool.filter((q) => rec(store, q.id).w === 1);
+    if (!pool.length)
+        return [];
+    /* 直近30問に出たものは出さない。ただし「まちがえた問題」は早めに戻す */
+    const recent = new Set(store.recent || []);
+    const justNow = new Set((store.recent || []).slice(0, 5));
+    let fresh = pool.filter((q) => rec(store, q.id).w === 1 ? !justNow.has(q.id) : !recent.has(q.id));
+    if (fresh.length < SET_SIZE)
+        fresh = pool;
+    const wrong = shuffle(fresh.filter((q) => rec(store, q.id).w === 1));
+    const rest = fresh
+        .filter((q) => rec(store, q.id).w !== 1)
+        .map((q) => {
+        const r = rec(store, q.id);
+        return { q: q, seen: r.o + r.x, k: Math.random() };
     })
-    .sort((a, b) => a.seen - b.seen || a.k - b.k)
-    .map((o) => o.q);
-
-  const wrongQuota = onlyWrong ? SET_SIZE : Math.min(4, wrong.length);
-  let picked = wrong.slice(0, wrongQuota).concat(rest).slice(0, SET_SIZE);
-  if (picked.length < SET_SIZE) {
-    const have = new Set(picked.map((q) => q.id));
-    picked = picked.concat(shuffle(pool.filter((q) => !have.has(q.id)))).slice(0, SET_SIZE);
-  }
-
-  return shuffle(picked).map((q) => {
-    const order = shuffle([0, 1, 2, 3]);
-    return {
-      q: q,
-      choices: order.map((i) => q.c[i]),
-      answer: order.indexOf(q.a),
-    };
-  });
+        .sort((a, b) => a.seen - b.seen || a.k - b.k)
+        .map((o) => o.q);
+    const wrongQuota = onlyWrong ? SET_SIZE : Math.min(4, wrong.length);
+    let picked = wrong.slice(0, wrongQuota).concat(rest).slice(0, SET_SIZE);
+    if (picked.length < SET_SIZE) {
+        const have = new Set(picked.map((q) => q.id));
+        picked = picked.concat(shuffle(pool.filter((q) => !have.has(q.id)))).slice(0, SET_SIZE);
+    }
+    return shuffle(picked).map((q) => {
+        const order = shuffle([0, 1, 2, 3]);
+        return {
+            q: q,
+            choices: order.map((i) => q.c[i]),
+            answer: order.indexOf(q.a),
+        };
+    });
 }
-
 /* ------------------------------------------------------------------ */
 /* 集計                                                                */
 /* ------------------------------------------------------------------ */
 const FIELDS = (function () {
-  const seen = [];
-  QUESTIONS.forEach((q) => {
-    if (!seen.some((f) => f.s === q.s && f.f === q.f)) seen.push({ s: q.s, f: q.f });
-  });
-  return seen;
-})();
-
-function fieldStats(store) {
-  return FIELDS.map((f) => {
-    let o = 0,
-      x = 0,
-      w = 0;
+    const seen = [];
     QUESTIONS.forEach((q) => {
-      if (q.s !== f.s || q.f !== f.f) return;
-      const r = rec(store, q.id);
-      o += r.o;
-      x += r.x;
-      if (r.w === 1) w += 1;
+        if (!seen.some((f) => f.s === q.s && f.f === q.f))
+            seen.push({ s: q.s, f: q.f });
     });
-    return { s: f.s, f: f.f, o: o, x: x, w: w, n: o + x, rate: o + x ? Math.round((o / (o + x)) * 100) : null };
-  });
+    return seen;
+})();
+function fieldStats(store) {
+    return FIELDS.map((f) => {
+        let o = 0, x = 0, w = 0;
+        QUESTIONS.forEach((q) => {
+            if (q.s !== f.s || q.f !== f.f)
+                return;
+            const r = rec(store, q.id);
+            o += r.o;
+            x += r.x;
+            if (r.w === 1)
+                w += 1;
+        });
+        return { s: f.s, f: f.f, o: o, x: x, w: w, n: o + x, rate: o + x ? Math.round((o / (o + x)) * 100) : null };
+    });
 }
-
 function wrongCount(store, subject) {
-  return QUESTIONS.filter((q) => (!subject || q.s === subject) && rec(store, q.id).w === 1).length;
+    return QUESTIONS.filter((q) => (!subject || q.s === subject) && rec(store, q.id).w === 1).length;
 }
-
 const SUBJECTS = ["国語", "社会", "理科"];
 const SUB_CLASS = { 国語: "kokugo", 社会: "shakai", 理科: "rika" };
-
 /* ------------------------------------------------------------------ */
 /* ホーム                                                              */
 /* ------------------------------------------------------------------ */
 function Home(props) {
-  const store = props.store;
-  const stats = useMemo(() => fieldStats(store), [store]);
-  const wrongAll = wrongCount(store, null);
-  const weak = stats.filter((s) => s.n >= 3).sort((a, b) => a.rate - b.rate)[0];
-
-  return (
-    <div className="screen home">
-      <div className="home-head">
-        <h1 className="wordmark">すきま一問一答</h1>
-        <p className="sub">
-          {store.done > 0
-            ? "これまで" + store.done + "問" + (store.streak > 1 ? "　" + store.streak + "日つづけて" : "")
-            : "1セット10問。1〜2分でおわります。"}
-        </p>
-      </div>
-
-      <div className="menu">
-        {SUBJECTS.map((s) => {
-          const w = wrongCount(store, s);
-          return (
-            <button key={s} className={"start " + SUB_CLASS[s]} onClick={() => props.onStart(s, false)}>
-              <span className="start-name">{s}</span>
-              <span className="start-meta">{w > 0 ? "にがて " + w + "問" : "10問"}</span>
-            </button>
-          );
-        })}
-        <div className="menu-row">
-          <button className="start wide" onClick={() => props.onStart(null, false)}>
-            <span className="start-name">3教科まぜて</span>
-          </button>
-          <button
-            className="start wide"
-            disabled={wrongAll === 0}
-            onClick={() => props.onStart(null, true)}
-          >
-            <span className="start-name">まちがえた問題</span>
-            <span className="start-meta">{wrongAll > 0 ? wrongAll + "問" : "なし"}</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="panel">
-        <h2 className="panel-title">分野べつの正答率</h2>
-        {stats.every((s) => s.n === 0) ? (
-          <p className="empty">といた問題がここに記録されます。</p>
-        ) : (
-          <ul className="bars">
-            {stats.map((s) => (
-              <li key={s.s + s.f} className={"bar-row " + SUB_CLASS[s.s]}>
-                <span className="bar-label">{s.f}</span>
-                <span className="bar-track">
-                  <span className="bar-fill" style={{ width: (s.rate === null ? 0 : s.rate) + "%" }} />
-                </span>
-                <span className="bar-val">{s.rate === null ? "—" : s.rate + "%"}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        {weak && weak.rate !== null && weak.rate < 100 ? (
-          <p className="hint">いま手ごわいのは「{weak.f}」（{weak.rate}%）。</p>
-        ) : null}
-      </div>
-
-      <button className="link" onClick={props.onData}>
-        記録の書き出し・読みこみ
-      </button>
-      <p className="ver">ver {APP_VERSION}</p>
-    </div>
-  );
+    const store = props.store;
+    const stats = useMemo(() => fieldStats(store), [store]);
+    const wrongAll = wrongCount(store, null);
+    const weak = stats.filter((s) => s.n >= 3).sort((a, b) => a.rate - b.rate)[0];
+    return (React.createElement("div", { className: "screen home" },
+        React.createElement("div", { className: "home-head" },
+            React.createElement("h1", { className: "wordmark" }, "\u3059\u304D\u307E\u4E00\u554F\u4E00\u7B54"),
+            React.createElement("p", { className: "sub" }, store.done > 0
+                ? "これまで" + store.done + "問" + (store.streak > 1 ? "　" + store.streak + "日つづけて" : "")
+                : "1セット10問。1〜2分でおわります。")),
+        React.createElement("div", { className: "menu" },
+            SUBJECTS.map((s) => {
+                const w = wrongCount(store, s);
+                return (React.createElement("button", { key: s, className: "start " + SUB_CLASS[s], onClick: () => props.onStart(s, false) },
+                    React.createElement("span", { className: "start-name" }, s),
+                    React.createElement("span", { className: "start-meta" }, w > 0 ? "にがて " + w + "問" : "10問")));
+            }),
+            React.createElement("div", { className: "menu-row" },
+                React.createElement("button", { className: "start wide", onClick: () => props.onStart(null, false) },
+                    React.createElement("span", { className: "start-name" }, "3\u6559\u79D1\u307E\u305C\u3066")),
+                React.createElement("button", { className: "start wide", disabled: wrongAll === 0, onClick: () => props.onStart(null, true) },
+                    React.createElement("span", { className: "start-name" }, "\u307E\u3061\u304C\u3048\u305F\u554F\u984C"),
+                    React.createElement("span", { className: "start-meta" }, wrongAll > 0 ? wrongAll + "問" : "なし")))),
+        React.createElement("div", { className: "panel" },
+            React.createElement("h2", { className: "panel-title" }, "\u5206\u91CE\u3079\u3064\u306E\u6B63\u7B54\u7387"),
+            React.createElement("p", { className: "empty" }, "\u5206\u91CE\u3092\u30BF\u30C3\u30D7\u3059\u308B\u3068\u3001\u305D\u306E\u5206\u91CE\u3060\u305110\u554F\u3002"),
+            stats.every((s) => s.n === 0) ? (React.createElement("p", { className: "empty" }, "\u3068\u3044\u305F\u554F\u984C\u304C\u3053\u3053\u306B\u8A18\u9332\u3055\u308C\u307E\u3059\u3002")) : (React.createElement("ul", { className: "bars" }, stats.map((s) => (React.createElement("li", { key: s.s + s.f, className: "bar-row " + SUB_CLASS[s.s] },
+                React.createElement("button", { className: "bar-btn", onClick: () => props.onStart(s.s, false, s.f) },
+                    React.createElement("span", { className: "bar-label" }, s.f),
+                    React.createElement("span", { className: "bar-track" },
+                        React.createElement("span", { className: "bar-fill", style: { width: (s.rate === null ? 0 : s.rate) + "%" } })),
+                    React.createElement("span", { className: "bar-val" }, s.rate === null ? "—" : s.rate + "%"))))))),
+            weak && weak.rate !== null && weak.rate < 100 ? (React.createElement("p", { className: "hint" },
+                "\u3044\u307E\u624B\u3054\u308F\u3044\u306E\u306F\u300C",
+                weak.f,
+                "\u300D\uFF08",
+                weak.rate,
+                "%\uFF09\u3002")) : null),
+        React.createElement("button", { className: "link", onClick: props.onData }, "\u8A18\u9332\u306E\u66F8\u304D\u51FA\u3057\u30FB\u8AAD\u307F\u3053\u307F"),
+        React.createElement("p", { className: "ver" },
+            "ver ",
+            APP_VERSION)));
 }
-
 /* ------------------------------------------------------------------ */
 /* 出題画面                                                            */
 /* ------------------------------------------------------------------ */
 function Quiz(props) {
-  const set = props.set;
-  const [idx, setIdx] = useState(0);
-  const [picked, setPicked] = useState(null);
-  const [log, setLog] = useState([]);
-
-  const item = set[idx];
-  const answered = picked !== null;
-  const correct = answered && picked === item.answer;
-
-  function choose(i) {
-    if (answered) return;
-    setPicked(i);
-    props.onAnswer(item.q, i === item.answer);
-  }
-
-  function next() {
-    const nextLog = log.concat([{ q: item.q, ok: picked === item.answer }]);
-    if (idx + 1 >= set.length) {
-      props.onFinish(nextLog);
-    } else {
-      setLog(nextLog);
-      setPicked(null);
-      setIdx(idx + 1);
+    const set = props.set;
+    const [idx, setIdx] = useState(0);
+    const [picked, setPicked] = useState(null);
+    const [log, setLog] = useState([]);
+    const item = set[idx];
+    const answered = picked !== null;
+    const correct = answered && picked === item.answer;
+    function choose(i) {
+        if (answered)
+            return;
+        setPicked(i);
+        props.onAnswer(item.q, i === item.answer, item.choices[i]);
     }
-  }
-
-  return (
-    <div className={"screen quiz " + SUB_CLASS[item.q.s]}>
-      <div className="quiz-head">
-        <button className="back" onClick={props.onQuit} aria-label="やめる">
-          ←
-        </button>
-        <span className="tag">
-          {item.q.s}・{item.q.f}
-        </span>
-        <span className="dots">
-          {set.map((_, i) => {
-            let c = "dot";
-            if (i < log.length) c += log[i].ok ? " dot-o" : " dot-x";
-            else if (i === idx) c += answered ? (correct ? " dot-o" : " dot-x") : " dot-now";
-            return <span key={i} className={c} />;
-          })}
-        </span>
-      </div>
-
-      <div className="stem">
-        <p className="stem-text">{item.q.q}</p>
-      </div>
-
-      <div className="choices">
-        {item.choices.map((c, i) => {
-          let cls = "choice";
-          if (answered) {
-            cls += " locked";
-            if (i === item.answer) cls += " is-answer";
-            else if (i === picked) cls += " is-miss";
-          }
-          return (
-            <button key={i} className={cls} onClick={() => choose(i)} disabled={answered}>
-              {c}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="foot">
-        {answered ? (
-          <button className={"result-bar " + (correct ? "ok" : "ng")} onClick={next}>
-            <span className="mark">{correct ? "○" : "×"}</span>
-            <span className="explain">{item.q.e}</span>
-            <span className="go">{idx + 1 >= set.length ? "けっか" : "つぎへ"}</span>
-          </button>
-        ) : (
-          <p className="foot-hint">{idx + 1} / {set.length}</p>
-        )}
-      </div>
-    </div>
-  );
+    function next() {
+        const nextLog = log.concat([{ q: item.q, ok: picked === item.answer }]);
+        if (idx + 1 >= set.length) {
+            props.onFinish(nextLog);
+        }
+        else {
+            setLog(nextLog);
+            setPicked(null);
+            setIdx(idx + 1);
+        }
+    }
+    return (React.createElement("div", { className: "screen quiz " + SUB_CLASS[item.q.s] },
+        React.createElement("div", { className: "quiz-head" },
+            React.createElement("button", { className: "back", onClick: props.onQuit, "aria-label": "\u3084\u3081\u308B" }, "\u2190"),
+            React.createElement("span", { className: "tag" },
+                item.q.s,
+                "\u30FB",
+                item.q.f),
+            React.createElement("span", { className: "dots" }, set.map((_, i) => {
+                let c = "dot";
+                if (i < log.length)
+                    c += log[i].ok ? " dot-o" : " dot-x";
+                else if (i === idx)
+                    c += answered ? (correct ? " dot-o" : " dot-x") : " dot-now";
+                return React.createElement("span", { key: i, className: c });
+            }))),
+        React.createElement("div", { className: "stem" },
+            React.createElement("p", { className: "stem-text" }, item.q.q)),
+        React.createElement("div", { className: "choices" }, item.choices.map((c, i) => {
+            let cls = "choice";
+            if (answered) {
+                cls += " locked";
+                if (i === item.answer)
+                    cls += " is-answer";
+                else if (i === picked)
+                    cls += " is-miss";
+            }
+            return (React.createElement("button", { key: i, className: cls, onClick: () => choose(i), disabled: answered }, c));
+        })),
+        React.createElement("div", { className: "foot" }, answered ? (React.createElement("button", { className: "result-bar " + (correct ? "ok" : "ng"), onClick: next },
+            React.createElement("span", { className: "mark" }, correct ? "○" : "×"),
+            React.createElement("span", { className: "explain" }, item.q.e),
+            React.createElement("span", { className: "go" }, idx + 1 >= set.length ? "けっか" : "つぎへ"))) : (React.createElement("p", { className: "foot-hint" },
+            idx + 1,
+            " / ",
+            set.length)))));
 }
-
 /* ------------------------------------------------------------------ */
 /* 結果画面                                                            */
 /* ------------------------------------------------------------------ */
 function Result(props) {
-  const log = props.log;
-  const ok = log.filter((l) => l.ok).length;
-  const missed = log.filter((l) => !l.ok);
-
-  return (
-    <div className="screen result">
-      <div className="score">
-        <p className="score-num">
-          {ok}
-          <span className="score-den">/ {log.length}</span>
-        </p>
-        <p className="score-note">
-          {missed.length === 0
-            ? "全問正解。"
-            : missed.length + "問は、つぎのセットでもう一度出ます。"}
-        </p>
-      </div>
-
-      {missed.length > 0 ? (
-        <ul className="review">
-          {missed.map((l, i) => (
-            <li key={i} className={"review-item " + SUB_CLASS[l.q.s]}>
-              <p className="review-q">{l.q.q}</p>
-              <p className="review-a">{l.q.c[l.q.a]}</p>
-              <p className="review-e">{l.q.e}</p>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      <div className="result-actions">
-        <button className="start wide" onClick={props.onAgain}>
-          <span className="start-name">もう10問</span>
-        </button>
-        <button className="start wide" onClick={props.onHome}>
-          <span className="start-name">ホームへ</span>
-        </button>
-      </div>
-    </div>
-  );
+    const log = props.log;
+    const ok = log.filter((l) => l.ok).length;
+    const missed = log.filter((l) => !l.ok);
+    return (React.createElement("div", { className: "screen result" },
+        React.createElement("div", { className: "score" },
+            React.createElement("p", { className: "score-num" },
+                ok,
+                React.createElement("span", { className: "score-den" },
+                    "/ ",
+                    log.length)),
+            React.createElement("p", { className: "score-note" }, missed.length === 0
+                ? "全問正解。"
+                : missed.length + "問は、つぎのセットでもう一度出ます。")),
+        missed.length > 0 ? (React.createElement("ul", { className: "review" }, missed.map((l, i) => (React.createElement("li", { key: i, className: "review-item " + SUB_CLASS[l.q.s] },
+            React.createElement("p", { className: "review-q" }, l.q.q),
+            React.createElement("p", { className: "review-a" }, l.q.c[l.q.a]),
+            React.createElement("p", { className: "review-e" }, l.q.e)))))) : null,
+        React.createElement("div", { className: "result-actions" },
+            React.createElement("button", { className: "start wide", onClick: props.onAgain },
+                React.createElement("span", { className: "start-name" }, "\u3082\u304610\u554F")),
+            React.createElement("button", { className: "start wide", onClick: props.onHome },
+                React.createElement("span", { className: "start-name" }, "\u30DB\u30FC\u30E0\u3078")))));
 }
-
 /* ------------------------------------------------------------------ */
 /* データ画面                                                          */
 /* ------------------------------------------------------------------ */
 function DataPanel(props) {
-  const [text, setText] = useState("");
-  const [msg, setMsg] = useState("");
-  const fileRef = useRef(null);
-
-  const json = JSON.stringify(props.store);
-
-  function download() {
-    try {
-      const blob = new Blob([json], { type: "application/json" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "ichimon-" + today() + ".json";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      setMsg("ファイルを書き出しました。");
-    } catch (e) {
-      setMsg("書き出せませんでした。下のテキストをコピーして保存してください。");
+    const [text, setText] = useState("");
+    const [msg, setMsg] = useState("");
+    const fileRef = useRef(null);
+    const json = JSON.stringify(props.store);
+    function download() {
+        try {
+            const blob = new Blob([json], { type: "application/json" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "ichimon-" + today() + ".json";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+            setMsg("ファイルを書き出しました。");
+        }
+        catch (e) {
+            setMsg("書き出せませんでした。下のテキストをコピーして保存してください。");
+        }
     }
-  }
-
-  function copy() {
-    try {
-      navigator.clipboard.writeText(json);
-      setMsg("コピーしました。");
-    } catch (e) {
-      setMsg("コピーできませんでした。長押しで選んでコピーしてください。");
+    function copy() {
+        try {
+            navigator.clipboard.writeText(json);
+            setMsg("コピーしました。");
+        }
+        catch (e) {
+            setMsg("コピーできませんでした。長押しで選んでコピーしてください。");
+        }
     }
-  }
-
-  function applyText(raw) {
-    try {
-      const obj = JSON.parse(raw);
-      if (!obj || typeof obj !== "object" || typeof obj.q !== "object") throw new Error("形式");
-      props.onImport(Object.assign(emptyStore(), obj));
-      setMsg("読みこみました。いまの記録は置きかわりました。");
-    } catch (e) {
-      setMsg("読みこめませんでした。JSONの中身を確認してください。");
+    function applyText(raw) {
+        try {
+            const obj = JSON.parse(raw);
+            if (!obj || typeof obj !== "object" || typeof obj.q !== "object")
+                throw new Error("形式");
+            props.onImport(Object.assign(emptyStore(), obj));
+            setMsg("読みこみました。いまの記録は置きかわりました。");
+        }
+        catch (e) {
+            setMsg("読みこめませんでした。JSONの中身を確認してください。");
+        }
     }
-  }
-
-  function pickFile(e) {
-    const f = e.target.files && e.target.files[0];
-    if (!f) return;
-    const r = new FileReader();
-    r.onload = () => applyText(String(r.result));
-    r.onerror = () => setMsg("ファイルを開けませんでした。");
-    r.readAsText(f);
-  }
-
-  return (
-    <div className="screen data">
-      <div className="quiz-head">
-        <button className="back" onClick={props.onHome} aria-label="もどる">
-          ←
-        </button>
-        <span className="tag">記録の書き出し・読みこみ</span>
-        <span className="dots" />
-      </div>
-
-      <div className="panel">
-        <h2 className="panel-title">書き出す</h2>
-        <div className="row2">
-          <button className="link-btn" onClick={download}>
-            ファイルに保存
-          </button>
-          <button className="link-btn" onClick={copy}>
-            テキストをコピー
-          </button>
-        </div>
-        <textarea className="ta" readOnly value={json} rows={4} />
-      </div>
-
-      <div className="panel">
-        <h2 className="panel-title">読みこむ</h2>
-        <p className="empty">読みこむと、いまの記録は置きかわります。</p>
-        <div className="row2">
-          <button className="link-btn" onClick={() => fileRef.current && fileRef.current.click()}>
-            ファイルを選ぶ
-          </button>
-          <button className="link-btn" onClick={() => applyText(text)} disabled={!text.trim()}>
-            貼りつけた内容を読む
-          </button>
-        </div>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json,.json"
-          onChange={pickFile}
-          style={{ display: "none" }}
-        />
-        <textarea
-          className="ta"
-          value={text}
-          rows={4}
-          placeholder="ここにJSONを貼りつけます"
-          onChange={(e) => setText(e.target.value)}
-        />
-      </div>
-
-      {msg ? <p className="msg">{msg}</p> : null}
-
-      <button className="link" onClick={props.onReset}>
-        記録をすべて消す
-      </button>
-    </div>
-  );
+    function pickFile(e) {
+        const f = e.target.files && e.target.files[0];
+        if (!f)
+            return;
+        const r = new FileReader();
+        r.onload = () => applyText(String(r.result));
+        r.onerror = () => setMsg("ファイルを開けませんでした。");
+        r.readAsText(f);
+    }
+    return (React.createElement("div", { className: "screen data" },
+        React.createElement("div", { className: "quiz-head" },
+            React.createElement("button", { className: "back", onClick: props.onHome, "aria-label": "\u3082\u3069\u308B" }, "\u2190"),
+            React.createElement("span", { className: "tag" }, "\u8A18\u9332\u306E\u66F8\u304D\u51FA\u3057\u30FB\u8AAD\u307F\u3053\u307F"),
+            React.createElement("span", { className: "dots" })),
+        React.createElement("div", { className: "panel" },
+            React.createElement("h2", { className: "panel-title" }, "\u66F8\u304D\u51FA\u3059"),
+            React.createElement("div", { className: "row2" },
+                React.createElement("button", { className: "link-btn", onClick: download }, "\u30D5\u30A1\u30A4\u30EB\u306B\u4FDD\u5B58"),
+                React.createElement("button", { className: "link-btn", onClick: copy }, "\u30C6\u30AD\u30B9\u30C8\u3092\u30B3\u30D4\u30FC")),
+            React.createElement("textarea", { className: "ta", readOnly: true, value: json, rows: 4 })),
+        React.createElement("div", { className: "panel" },
+            React.createElement("h2", { className: "panel-title" }, "\u8AAD\u307F\u3053\u3080"),
+            React.createElement("p", { className: "empty" }, "\u8AAD\u307F\u3053\u3080\u3068\u3001\u3044\u307E\u306E\u8A18\u9332\u306F\u7F6E\u304D\u304B\u308F\u308A\u307E\u3059\u3002"),
+            React.createElement("div", { className: "row2" },
+                React.createElement("button", { className: "link-btn", onClick: () => fileRef.current && fileRef.current.click() }, "\u30D5\u30A1\u30A4\u30EB\u3092\u9078\u3076"),
+                React.createElement("button", { className: "link-btn", onClick: () => applyText(text), disabled: !text.trim() }, "\u8CBC\u308A\u3064\u3051\u305F\u5185\u5BB9\u3092\u8AAD\u3080")),
+            React.createElement("input", { ref: fileRef, type: "file", accept: "application/json,.json", onChange: pickFile, style: { display: "none" } }),
+            React.createElement("textarea", { className: "ta", value: text, rows: 4, placeholder: "\u3053\u3053\u306BJSON\u3092\u8CBC\u308A\u3064\u3051\u307E\u3059", onChange: (e) => setText(e.target.value) })),
+        msg ? React.createElement("p", { className: "msg" }, msg) : null,
+        React.createElement("button", { className: "link", onClick: props.onReset }, "\u8A18\u9332\u3092\u3059\u3079\u3066\u6D88\u3059")));
 }
-
 /* ------------------------------------------------------------------ */
 /* ルート                                                              */
 /* ------------------------------------------------------------------ */
 function App() {
-  const [store, setStore] = useState(loadStore);
-  const [view, setView] = useState("home");
-  const [set, setSet] = useState([]);
-  const [log, setLog] = useState([]);
-  const lastStart = useRef({ subject: null, onlyWrong: false });
-
-  useEffect(() => {
-    saveStore(store);
-  }, [store]);
-
-  function start(subject, onlyWrong) {
-    const s = buildSet(store, subject, onlyWrong);
-    if (!s.length) return;
-    lastStart.current = { subject: subject, onlyWrong: onlyWrong };
-    setStore((prev) => touchStreak(Object.assign({}, prev)));
-    setSet(s);
-    setView("quiz");
-  }
-
-  function onAnswer(q, ok) {
-    setStore((prev) => {
-      const next = Object.assign({}, prev);
-      next.q = Object.assign({}, prev.q);
-      const r = Object.assign({ o: 0, x: 0, w: 0, s: 0 }, prev.q[q.id]);
-      if (ok) {
-        r.o += 1;
-        if (r.w === 1) {
-          r.s += 1;
-          if (r.s >= 2) {
-            r.w = 0;
-            r.s = 0;
-          }
-        }
-      } else {
-        r.x += 1;
-        r.w = 1;
-        r.s = 0;
-      }
-      next.q[q.id] = r;
-      next.recent = [q.id].concat((prev.recent || []).filter((i) => i !== q.id)).slice(0, RECENT_MAX);
-      next.done = (prev.done || 0) + 1;
-      return next;
-    });
-  }
-
-  function finish(fullLog) {
-    setLog(fullLog);
-    setView("result");
-  }
-
-  if (view === "quiz" && set.length) {
-    return (
-      <Quiz
-        set={set}
-        onAnswer={onAnswer}
-        onFinish={finish}
-        onQuit={() => setView("home")}
-      />
-    );
-  }
-  if (view === "result") {
-    return (
-      <Result
-        log={log}
-        onAgain={() => start(lastStart.current.subject, lastStart.current.onlyWrong)}
-        onHome={() => setView("home")}
-      />
-    );
-  }
-  if (view === "data") {
-    return (
-      <DataPanel
-        store={store}
-        onHome={() => setView("home")}
-        onImport={(s) => {
-          setStore(s);
-          setView("home");
-        }}
-        onReset={() => {
-          if (window.confirm("記録をすべて消します。よろしいですか。")) {
-            setStore(emptyStore());
-            setView("home");
-          }
-        }}
-      />
-    );
-  }
-  return <Home store={store} onStart={start} onData={() => setView("data")} />;
+    const [store, setStore] = useState(loadStore);
+    const [view, setView] = useState("home");
+    const [set, setSet] = useState([]);
+    const [log, setLog] = useState([]);
+    const lastStart = useRef({ subject: null, onlyWrong: false, field: null });
+    useEffect(() => {
+        saveStore(store);
+    }, [store]);
+    function start(subject, onlyWrong, field) {
+        const s = buildSet(store, subject, onlyWrong, field || null);
+        if (!s.length)
+            return;
+        lastStart.current = { subject: subject, onlyWrong: onlyWrong, field: field || null };
+        setStore((prev) => touchStreak(Object.assign({}, prev)));
+        setSet(s);
+        setView("quiz");
+    }
+    function onAnswer(q, ok, chosen) {
+        setStore((prev) => {
+            const next = Object.assign({}, prev);
+            next.q = Object.assign({}, prev.q);
+            const r = Object.assign({ o: 0, x: 0, w: 0, s: 0 }, prev.q[q.id]);
+            if (ok) {
+                r.o += 1;
+                if (r.w === 1) {
+                    r.s += 1;
+                    if (r.s >= 2) {
+                        r.w = 0;
+                        r.s = 0;
+                    }
+                }
+            }
+            else {
+                r.x += 1;
+                r.w = 1;
+                r.s = 0;
+                /* どの選択肢と取りちがえたかを残す(書き出したJSONで確認できる) */
+                r.m = Object.assign({}, r.m);
+                if (chosen)
+                    r.m[chosen] = (r.m[chosen] || 0) + 1;
+            }
+            next.q[q.id] = r;
+            next.recent = [q.id].concat((prev.recent || []).filter((i) => i !== q.id)).slice(0, RECENT_MAX);
+            next.done = (prev.done || 0) + 1;
+            return next;
+        });
+    }
+    function finish(fullLog) {
+        setLog(fullLog);
+        setView("result");
+    }
+    if (view === "quiz" && set.length) {
+        return (React.createElement(Quiz, { set: set, onAnswer: onAnswer, onFinish: finish, onQuit: () => setView("home") }));
+    }
+    if (view === "result") {
+        return (React.createElement(Result, { log: log, onAgain: () => start(lastStart.current.subject, lastStart.current.onlyWrong, lastStart.current.field), onHome: () => setView("home") }));
+    }
+    if (view === "data") {
+        return (React.createElement(DataPanel, { store: store, onHome: () => setView("home"), onImport: (s) => {
+                setStore(s);
+                setView("home");
+            }, onReset: () => {
+                if (window.confirm("記録をすべて消します。よろしいですか。")) {
+                    setStore(emptyStore());
+                    setView("home");
+                }
+            } }));
+    }
+    return React.createElement(Home, { store: store, onStart: start, onData: () => setView("data") });
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+} else {
+  document.getElementById("root").innerHTML =
+    '<div class="fallback"><h1>読みこめませんでした</h1>' +
+    '<p>アプリの部品を取ってくる途中で通信が途切れたようです。</p>' +
+    '<p>電波の届くところで、画面を下に引っぱって読みこみ直してください。</p></div>';
+}
 </script>
 </body>
 </html>
